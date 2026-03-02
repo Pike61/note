@@ -469,10 +469,10 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
 '''
 
 
-def create_flask_app(enable_auth: bool = False, username: str = "admin", password: str = "secret"):
+def create_flask_app():
     """Создание Flask-приложения"""
     try:
-        from flask import Flask, render_template_string, request, redirect, url_for, flash, session
+        from flask import Flask, render_template_string, request, redirect, url_for, flash
     except ImportError:
         print("Ошибка: Flask не установлен. Установите: pip install flask")
         sys.exit(1)
@@ -480,49 +480,14 @@ def create_flask_app(enable_auth: bool = False, username: str = "admin", passwor
     app = Flask(__name__)
     app.secret_key = 'notecaddy-secret-key'
     
-    # Простая авторизация
-    def check_auth():
-        if not enable_auth:
-            return True
-        return session.get('logged_in', False)
-    
-    @app.route('/login', methods=['GET', 'POST'])
-    def login():
-        if request.method == 'POST':
-            user = request.form.get('username', '')
-            pwd = request.form.get('password', '')
-            if user == username and pwd == password:
-                session['logged_in'] = True
-                return redirect(url_for('index'))
-            flash('Неверный логин или пароль')
-        return '''<!DOCTYPE html><html><head><title>Login</title></head>
-<body style="background:#1a1a2e;color:#fff;padding:50px;font-family:Arial;text-align:center;">
-<h2>NoteCaddy - Вход</h2>
-<form method="post" style="display:inline-block;text-align:left;">
-<input name="username" placeholder="Логин" style="padding:10px;margin:5px;display:block;"><br>
-<input name="password" type="password" placeholder="Пароль" style="padding:10px;margin:5px;display:block;"><br>
-<button style="padding:10px 30px;background:#00d9ff;border:none;cursor:pointer;">Войти</button>
-</form></body></html>'''
-    
-    @app.route('/logout')
-    def logout():
-        session.clear()
-        return redirect(url_for('login'))
-    
     @app.route('/')
     def index():
-        if enable_auth and not check_auth():
-            return redirect(url_for('login'))
-        
         notes = load_notes()
         notes = list(reversed(notes))
         return render_template_string(HTML_TEMPLATE, notes=notes)
     
     @app.route('/add', methods=['POST'])
     def add():
-        if enable_auth and not check_auth():
-            return redirect(url_for('login'))
-        
         text = request.form.get('text', '').strip()
         if text:
             add_note(text)
@@ -531,9 +496,6 @@ def create_flask_app(enable_auth: bool = False, username: str = "admin", passwor
     
     @app.route('/delete', methods=['POST'])
     def delete():
-        if enable_auth and not check_auth():
-            return redirect(url_for('login'))
-        
         note_id = request.form.get('id')
         if note_id:
             delete_note(int(note_id))
@@ -543,17 +505,10 @@ def create_flask_app(enable_auth: bool = False, username: str = "admin", passwor
     return app
 
 
-def run_web(port: int = DEFAULT_PORT, enable_auth: bool = False, username: str = "admin", password: str = "secret") -> None:
+def run_web(port: int = DEFAULT_PORT) -> None:
     """Запуск веб-сервера Flask"""
-    app = create_flask_app(enable_auth=enable_auth, username=username, password=password)
-    
-    if enable_auth:
-        print(f"🔐 Веб-интерфейс доступен по адресу: http://localhost:{port}")
-        print(f"   Логин: {username}")
-        print(f"   Пароль: {password}")
-    else:
-        print(f"🌐 Веб-интерфейс доступен по адресу: http://localhost:{port}")
-    
+    app = create_flask_app()
+    print(f"🌐 Веб-интерфейс доступен по адресу: http://localhost:{port}")
     print(f"   Нажмите Ctrl+C для остановки")
     app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
     
@@ -579,22 +534,6 @@ def main():
         default=DEFAULT_PORT, 
         help=f"Порт для веб-сервера (по умолчанию: {DEFAULT_PORT})"
     )
-    # Аргументы авторизации
-    parser.add_argument(
-        "--auth", 
-        action="store_true", 
-        help="Включить авторизацию"
-    )
-    parser.add_argument(
-        "--username", 
-        default="admin", 
-        help="Имя пользователя для авторизации"
-    )
-    parser.add_argument(
-        "--password", 
-        default="secret", 
-        help="Пароль для авторизации"
-    )
     parser.add_argument(
         "command", 
         nargs="?", 
@@ -609,7 +548,7 @@ def main():
         run_cli()
     else:
         # По умолчанию — веб-режим
-        run_web(args.port, args.auth, args.username, args.password)
+        run_web(args.port)
 
 
 if __name__ == "__main__":
